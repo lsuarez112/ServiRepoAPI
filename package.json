@@ -11,6 +11,6 @@
   "author": "Tu Nombre o Equipo",
   "license": "ISC",
   "devDependencies": {
-    "wrangler": "^3.0.0"
+    "wrangler": "^4.14.1"
   }
 }
