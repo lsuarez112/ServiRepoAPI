@@ -7,7 +7,7 @@ export async function handleUser(url) {
     return jsonResponse({ error: "Parameter 'dni' is required" }, 400);
   }
 
-  const API_URL = `https://cloud01.browix.com/v1/externalpermissions/getUsers/uuid:5632674a4257a67218c812191c3efd81/${dni}`;
+  const API_URL = `https://cloud01.browix.com/v1/externalpermissions/getUsers/uuid:5632674a4257a67218c812191c3efd81/${dni}/returnOnlyDataPayload:1`;
 
   try {
     const res = await fetch(API_URL);
@@ -18,8 +18,8 @@ export async function handleUser(url) {
       );
     }
 
-    const data = await res.json();
-    const records = data?.response?.data?.records || [];
+    const jsonData = await res.json();
+    const records = jsonData?.data?.records || [];
 
     if (records.length === 0) {
       return jsonResponse({ error: `No user found with DNI: ${dni}` }, 404);
@@ -61,7 +61,10 @@ export async function handleUser(url) {
     });
   } catch (error) {
     return jsonResponse(
-      { error: 'Exception occurred while fetching user data' },
+      {
+        error: 'Exception occurred while fetching user data',
+        details: error.message,
+      },
       500
     );
   }

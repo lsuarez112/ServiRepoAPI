@@ -1,0 +1,16 @@
+{
+  "name": "marcaciones-api",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker API para consultar usuarios y marcaciones.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "echo 'No build step required'",
+    "deploy": "wrangler deploy"
+  },
+  "author": "Tu Nombre o Equipo",
+  "license": "ISC",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

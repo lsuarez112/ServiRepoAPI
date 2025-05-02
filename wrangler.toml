@@ -1,0 +1,7 @@
+name = "marcaciones-api"
+main = "worker.js"
+compatibility_date = "2024-05-01"
+
+account_id = "3b103a67a8d6ff935db5f5a1cb8e797b"
+
+workers_dev = true
