@@ -31,6 +31,11 @@ export async function handleMarcaciones(url) {
       return jsonResponse({ error: 'User not found.' }, 404);
     }
 
+    // console.log(
+    //   '🛑 [handleMarcaciones] Sleeping 1.5 seconds before fetching supervised users...'
+    // );
+    await sleep(1500); // 1.5 segundos de espera
+
     const usersList = await processUsers(userData, includeSupervised);
     const result = {};
 
