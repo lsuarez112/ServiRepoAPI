@@ -165,7 +165,10 @@ export async function handleMarcaciones(url) {
       }
 
       // Guardamos todo agrupado por usuario
-      result[user.fullName] = groupedByDate;
+      result[user.fullName] = {
+        dni: user.identificationNumber,
+        data: groupedByDate,
+      };
     }
 
     return jsonResponse({ status: 'OK', data: result });
