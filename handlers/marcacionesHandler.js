@@ -3,6 +3,17 @@ import { processUsers } from './usersProcessor.js';
 import { calculateTimeDifference } from '../utils/calculateTimeDifference.js';
 import { buildGoogleMapsLink } from '../utils/buildGoogleMapsLink.js';
 
+function msToHMS(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(
+    2,
+    '0'
+  )}:${String(seconds).padStart(2, '0')}`;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -153,15 +164,15 @@ export async function handleMarcaciones(url) {
       totals[user.fullName] = {
         totalNetHours: {
           decimal: +(userNetMs / 3600000).toFixed(2),
-          hms: new Date(userNetMs).toISOString().substr(11, 8),
+          hms: msToHMS(userNetMs),
         },
         totalTransferHours: {
           decimal: +(userTransferMs / 3600000).toFixed(2),
-          hms: new Date(userTransferMs).toISOString().substr(11, 8),
+          hms: msToHMS(userTransferMs),
         },
         totalGrossHours: {
           decimal: +(userGrossMs / 3600000).toFixed(2),
-          hms: new Date(userGrossMs).toISOString().substr(11, 8),
+          hms: msToHMS(userGrossMs),
         },
       };
 

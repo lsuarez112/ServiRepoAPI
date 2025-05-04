@@ -9,7 +9,7 @@ export default {
     const path = url.pathname;
 
     if (path === '/user') return await handleUser(url);
-    if (path === '/supervicedUsers') return await handleSupervisedUsers(url);
+    if (path === '/supervisedUsers') return await handleSupervisedUsers(url);
     if (path === '/marcaciones') return await handleMarcaciones(url);
     if (path === '/totalHours') return await handleTotalHours(url);
 
