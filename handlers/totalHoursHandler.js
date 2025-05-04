@@ -29,9 +29,7 @@ export async function handleTotalHours(url) {
       const intervalData = interval.Interval;
 
       const datetimeIn = new Date(intervalData.datetime_in);
-      const datetimeOut = intervalData.datetime_out
-        ? new Date(intervalData.datetime_out)
-        : new Date();
+      const datetimeOut = new Date(intervalData.datetime_out);
       const dateKey = datetimeIn.toISOString().split('T')[0];
 
       if (!groupedByDate[dateKey]) {
@@ -61,9 +59,7 @@ export async function handleTotalHours(url) {
       // Sumamos neto
       dayIntervals.forEach((interval, idx) => {
         const start = new Date(interval.datetime_in);
-        const end = interval.datetime_out
-          ? new Date(interval.datetime_out)
-          : new Date();
+        const end = new Date(interval.datetime_out);
 
         dailyNetMs += end - start;
 
@@ -79,11 +75,8 @@ export async function handleTotalHours(url) {
       const firstInterval = dayIntervals[0];
       const lastInterval = dayIntervals[dayIntervals.length - 1];
       const grossMs =
-        new Date(
-          lastInterval.datetime_out
-            ? lastInterval.datetime_out
-            : new Date()
-        ) - new Date(firstInterval.datetime_in);
+        new Date(lastInterval.datetime_out) -
+        new Date(firstInterval.datetime_in);
 
       // Acumulamos en los totales globales
       totalNetMs += dailyNetMs;

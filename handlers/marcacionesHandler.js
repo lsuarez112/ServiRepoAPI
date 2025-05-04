@@ -13,6 +13,7 @@ export async function handleMarcaciones(url) {
   const dni = url.searchParams.get('dni');
   const includeSupervised =
     url.searchParams.get('includeSupervised') === 'true';
+  const totalsOnly = url.searchParams.get('totalsOnly') === 'true';
 
   if (!fromDate || !toDate || !dni) {
     return jsonResponse(
@@ -23,21 +24,19 @@ export async function handleMarcaciones(url) {
 
   try {
     const userRes = await fetch(
-      `https://cloud01.browix.com/v1/externalpermissions/getUsers/uuid:5632674a4257a67218c812191c3efd81/${dni}`
+      `https://cloud01.browix.com/v1/externalpermissions/getUsers/uuid:5632674a4257a67218c812191c3efd81/${dni}/returnOnlyDataPayload:1`
     );
     const userJson = await userRes.json();
-    const userData = userJson?.response?.data?.records?.[0]?.User;
+    const userData = userJson?.data?.records[0]?.User;
     if (!userData) {
       return jsonResponse({ error: 'User not found.' }, 404);
     }
 
-    // console.log(
-    //   '🛑 [handleMarcaciones] Sleeping 1.5 seconds before fetching supervised users...'
-    // );
-    await sleep(1500); // 1.5 segundos de espera
+    await sleep(1500);
 
     const usersList = await processUsers(userData, includeSupervised);
     const result = {};
+    const totals = {};
 
     for (const user of usersList) {
       await sleep(1000);
@@ -49,23 +48,22 @@ export async function handleMarcaciones(url) {
 
       const groupedByDate = {};
 
+      let userNetMs = 0;
+      let userTransferMs = 0;
+      let userGrossMs = 0;
+
       for (const interval of intervals) {
         const intervalData = interval.Interval;
         const branchIn = interval.BranchIn;
 
         const datetimeIn = new Date(intervalData.datetime_in);
-        const datetimeOut = intervalData.datetime_out
-          ? new Date(intervalData.datetime_out)
-          : new Date();
+        const datetimeOut = new Date(intervalData.datetime_out);
         const dateKey = datetimeIn.toISOString().split('T')[0];
 
         if (!groupedByDate[dateKey]) {
           groupedByDate[dateKey] = {
             intervals: [],
-            routeUrl: '',
-            totalGrossHours: '',
-            totalNetHours: '',
-            totalTransferHours: '',
+            routePoints: [],
           };
         }
 
@@ -77,101 +75,116 @@ export async function handleMarcaciones(url) {
           lonIn: intervalData.lon_in,
           latOut: intervalData.lat_out,
           lonOut: intervalData.lon_out,
-          // Campos adicionales que rellenamos luego
-          mapIn: '',
-          mapOut: '',
-          from: '',
-          transferLabel: '',
-          transferTimeHMS: '',
         });
+
+        groupedByDate[dateKey].routePoints.push(
+          `${intervalData.lat_in},${intervalData.lon_in}`
+        );
       }
 
-      // Proceso para cada fecha
+      const userDataObject = {};
+
       for (const [dateKey, dayData] of Object.entries(groupedByDate)) {
-        let totalNetMs = 0;
-        let totalTransferMs = 0;
-        const routePoints = [];
+        let dayNetMs = 0;
+        let dayTransferMs = 0;
 
-        dayData.intervals.forEach((interval, idx) => {
+        const processedIntervals = dayData.intervals.map((interval, idx) => {
           const start = new Date(interval.datetime_in);
-          const end = interval.datetime_out
-            ? new Date(interval.datetime_out)
-            : new Date();
+          const end = new Date(interval.datetime_out);
 
-          totalNetMs += end - start;
-          routePoints.push(`${interval.latIn},${interval.lonIn}`);
+          dayNetMs += end - start;
 
-          interval.mapIn = buildGoogleMapsLink(interval.latIn, interval.lonIn);
-          interval.mapOut = buildGoogleMapsLink(
-            interval.latOut,
-            interval.lonOut
-          );
+          let transferTimeHMS = '00:00:00';
+          let transferLabel = 'Start of Day';
+          let from = 'Start of Day';
 
-          if (idx === 0) {
-            interval.from = 'Start of Day';
-            interval.transferLabel = 'Start of Day';
-            interval.transferTimeHMS = '00:00:00';
-          } else {
+          if (idx > 0) {
             const prev = dayData.intervals[idx - 1];
             const prevEnd = new Date(prev.datetime_out);
             const transfer = calculateTimeDifference(prevEnd, start);
-
-            interval.from = buildGoogleMapsLink(
+            transferTimeHMS = transfer.hms;
+            transferLabel = `${prev.location} --> ${interval.location}`;
+            from = buildGoogleMapsLink(
               prev.latOut,
               prev.lonOut,
               interval.latIn,
               interval.lonIn
             );
-            interval.transferLabel = `${prev.location} --> ${interval.location}`;
-            interval.transferTimeHMS = transfer.hms;
-            totalTransferMs += start - prevEnd;
+            dayTransferMs += start - prevEnd;
           }
+
+          return {
+            number: idx + 1,
+            transferTimeBetween: transferTimeHMS,
+            branchName: interval.location,
+            timeIn: interval.datetime_in || 'Sin Entrada Registrada',
+            mapIn: buildGoogleMapsLink(interval.latIn, interval.lonIn),
+            timeOut: interval.datetime_out || 'Sin Salida Registrada',
+            mapOut: buildGoogleMapsLink(interval.latOut, interval.lonOut),
+            transferLabel,
+            from,
+            transportType: user.primaryTransport || 'N/A',
+          };
         });
 
         const firstInterval = dayData.intervals[0];
         const lastInterval = dayData.intervals[dayData.intervals.length - 1];
-        const gross = calculateTimeDifference(
-          new Date(firstInterval.datetime_in),
-          lastInterval.datetime_out
-            ? new Date(lastInterval.datetime_out)
-            : new Date()
-        );
+        const grossMs =
+          new Date(lastInterval.datetime_out) -
+          new Date(firstInterval.datetime_in);
 
-        // Métricas finales del día
-        dayData.totalNetHours = new Date(totalNetMs)
-          .toISOString()
-          .substr(11, 8);
-        dayData.totalTransferHours = new Date(totalTransferMs)
-          .toISOString()
-          .substr(11, 8);
-        dayData.totalGrossHours = gross.hms;
-        dayData.routeUrl = `https://www.google.com/maps/dir/${routePoints.join(
-          '/'
-        )}`;
+        userDataObject[dateKey] = {
+          intervals: processedIntervals,
+          routeUrl: `https://www.google.com/maps/dir/${dayData.routePoints.join(
+            '/'
+          )}`,
+          totalGrossHours: new Date(grossMs).toISOString().substr(11, 8),
+          totalNetHours: new Date(dayNetMs).toISOString().substr(11, 8),
+          totalTransferHours: new Date(dayTransferMs)
+            .toISOString()
+            .substr(11, 8),
+        };
 
-        // 🔄 Ahora transformamos cada marcación para solo dejar las columnas útiles para el reporte
-        dayData.intervals = dayData.intervals.map((marcacion, idx) => ({
-          number: idx + 1,
-          transferTimeBetween: marcacion.transferTimeHMS,
-          branchName: marcacion.location,
-          timeIn: marcacion.datetime_in || 'Sin Entrada Registrada',
-          mapIn: marcacion.mapIn,
-          timeOut: marcacion.datetime_out || 'Sin Salida Registrada',
-          mapOut: marcacion.mapOut,
-          transferLabel: marcacion.transferLabel,
-          from: marcacion.from,
-          transportType: user.primaryTransport || 'N/A',
-        }));
+        userNetMs += dayNetMs;
+        userTransferMs += dayTransferMs;
+        userGrossMs += grossMs;
       }
 
-      // Guardamos todo agrupado por usuario
-      result[user.fullName] = {
-        dni: user.identificationNumber,
-        data: groupedByDate,
+      totals[user.fullName] = {
+        totalNetHours: {
+          decimal: +(userNetMs / 3600000).toFixed(2),
+          hms: new Date(userNetMs).toISOString().substr(11, 8),
+        },
+        totalTransferHours: {
+          decimal: +(userTransferMs / 3600000).toFixed(2),
+          hms: new Date(userTransferMs).toISOString().substr(11, 8),
+        },
+        totalGrossHours: {
+          decimal: +(userGrossMs / 3600000).toFixed(2),
+          hms: new Date(userGrossMs).toISOString().substr(11, 8),
+        },
       };
+
+      if (!totalsOnly) {
+        result[user.fullName] = {
+          dni: user.identificationNumber,
+          data: userDataObject,
+        };
+      }
     }
 
-    return jsonResponse({ status: 'OK', data: result });
+    if (totalsOnly) {
+      return jsonResponse({
+        status: 'OK',
+        totals,
+      });
+    } else {
+      return jsonResponse({
+        status: 'OK',
+        data: result,
+        totals,
+      });
+    }
   } catch (error) {
     console.error('Error in handleMarcaciones:', error);
     return jsonResponse({ error: 'Unexpected error occurred' }, 500);
